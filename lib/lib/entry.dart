@@ -21,3 +21,6 @@ Option<Map<String, dynamic>> dataTarget(Map<String, dynamic> field) =>
 
 Option<List<Map<String, dynamic>>> contentList(Map<String, dynamic> entry) =>
     optionOf(entry['content']).map(convert.listOfMaps);
+
+Option<Map<String, dynamic>> data(Map<String, dynamic> field) =>
+    optionOf(field['data']);
