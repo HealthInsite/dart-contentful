@@ -24,38 +24,62 @@ class Includes {
   final _IncludesMap map;
 
   /// Keep track of processed entry id to prevent infinite recursive loop.
-  List<String> _processedIds = [];
+  Map<String, int> _processedIds = {};
+  int _maxDiscoveredCount = 1;
 
-  List<Map<String, dynamic>> resolveLinks(List<dynamic> items) =>
-      items.map(convert.map).map(_walkMap).toList();
+  List<Map<String, dynamic>> resolveLinks(
+    List<dynamic> items, {
+    bool initial = false,
+  }) {
+    if (initial) {
+      _maxDiscoveredCount = items.length;
+    }
+    return items.map(convert.map).map(_walkMap).toList();
+  }
 
   /// Walk the branch and look at each fields if there is
   /// a field that contains a link to other entry
   /// then continue on that branch of entry.
-  Map<String, dynamic> _walkMap(Map<String, dynamic> entry) =>
-      entry_utils.isLink(entry)
-          ? map.resolveLink(entry).fold(() => entry, _walkMap)
-          : entry_utils.fields(entry).fold(
-                () => entry,
-                (fields) => {
-                  ...entry,
-                  'fields': fields.map(_resolveEntryField),
-                },
-              );
+  Map<String, dynamic> _walkMap(Map<String, dynamic> entry) {
+    final id = entry_utils.id(entry).fold(() => '', (id) => id);
+    // print('WalkMap: $id');
+    return entry_utils.isLink(entry)
+        ? map.resolveLink(entry).fold(() => entry, _walkMap)
+        : entry_utils.fields(entry).fold(
+              () => entry,
+              (fields) => {
+                ...entry,
+                'fields': fields.map(
+                  (String key, dynamic object) =>
+                      _resolveEntryField(key, object, id),
+                ),
+              },
+            );
+  }
 
   /// Look through each field in `fields`.
   ///
   /// `key` is `ContentType` of the entry.
-  MapEntry<String, dynamic> _resolveEntryField(String key, dynamic object) {
-    final objectId = object.toString();
-    final isProcessed = _processedIds.contains(objectId);
-    if (_isListOfLinks(object) && !isProcessed) {
-      _processedIds.add(objectId);
+  MapEntry<String, dynamic> _resolveEntryField(
+    String key,
+    dynamic object,
+    String entryId,
+  ) {
+    // print(' Resolve: $entryId: $key');
+
+    /// max discoveredTime allowed = items.length
+    final discoveredTimes = _processedIds[entryId] ?? 0;
+    if (_isListOfLinks(object) && discoveredTimes < _maxDiscoveredCount) {
+      _processedIds.update(entryId, (value) => value + 1, ifAbsent: () => 1);
+      // print('_processedIds: ${_processedIds.length}');
+      // 1. links to entries
       return MapEntry(key, resolveLinks(object));
     } else if (object is! Map) {
+      // 2. value
       return MapEntry(key, object);
     }
 
+    // 3. map of values or a link
     final fieldMap = some(convert.map(object));
     final resolveLink = () =>
         fieldMap.filter(entry_utils.isLink).bind(map.resolveLink).map(_walkMap);
