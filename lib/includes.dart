@@ -23,9 +23,15 @@ class Includes {
   Includes._(this.map);
   final _IncludesMap map;
 
+  /// Keep track of processed entry id to prevent infinite recursive loop.
+  List<String> _processedIds = [];
+
   List<Map<String, dynamic>> resolveLinks(List<dynamic> items) =>
       items.map(convert.map).map(_walkMap).toList();
 
+  /// Walk the branch and look at each fields if there is
+  /// a field that contains a link to other entry
+  /// then continue on that branch of entry.
   Map<String, dynamic> _walkMap(Map<String, dynamic> entry) =>
       entry_utils.isLink(entry)
           ? map.resolveLink(entry).fold(() => entry, _walkMap)
@@ -37,8 +43,14 @@ class Includes {
                 },
               );
 
+  /// Look through each field in `fields`.
+  ///
+  /// `key` is `ContentType` of the entry.
   MapEntry<String, dynamic> _resolveEntryField(String key, dynamic object) {
-    if (_isListOfLinks(object)) {
+    final objectId = object.toString();
+    final isProcessed = _processedIds.contains(objectId);
+    if (_isListOfLinks(object) && !isProcessed) {
+      _processedIds.add(objectId);
       return MapEntry(key, resolveLinks(object));
     } else if (object is! Map) {
       return MapEntry(key, object);
