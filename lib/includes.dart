@@ -24,7 +24,7 @@ class Includes {
   final _IncludesMap map;
 
   /// Keep track of processed entry id to prevent infinite recursive loop.
-  Map<String, int> _processedIds = {};
+  final Map<String, int> _processedIds = {};
   int _maxDiscoveredCount = 1;
 
   List<Map<String, dynamic>> resolveLinks(
@@ -65,17 +65,23 @@ class Includes {
     dynamic object,
     String entryId,
   ) {
-    // print(' Resolve: $entryId: $key');
+    // print(' Resolve: $entryId: $key, $_maxDiscoveredCount');
 
     /// max discoveredTime allowed = items.length
-    final discoveredTimes = _processedIds[entryId] ?? 0;
+    final discoveryKry = '$entryId:$key';
+    final discoveredTimes = _processedIds[discoveryKry] ?? 0;
+    // if (discoveredTimes >= _maxDiscoveredCount) {
+    //   print('|||    Rejecting: $discoveryKry: $discoveredTimes');
+    // }
     if (_isListOfLinks(object) && discoveredTimes < _maxDiscoveredCount) {
-      _processedIds.update(entryId, (value) => value + 1, ifAbsent: () => 1);
+      _processedIds.update(discoveryKry, (value) => value + 1,
+          ifAbsent: () => 1);
       // print('_processedIds: ${_processedIds.length}');
       // 1. links to entries
       return MapEntry(key, resolveLinks(object));
     } else if (object is! Map) {
       // 2. value
+      // print('  ->: $object');
       return MapEntry(key, object);
     }
 
@@ -87,9 +93,12 @@ class Includes {
         () => fieldMap.filter(entry_utils.isRichText).map(_walkRichText);
 
     return resolveLink().orElse(resolveRichText).fold(
-          () => MapEntry(key, object),
-          (field) => MapEntry(key, field),
-        );
+      () => MapEntry(key, object),
+      (field) {
+        // print('  ->:: $object');
+        return MapEntry(key, field);
+      },
+    );
   }
 
   Map<String, dynamic> _walkRichText(Map<String, dynamic> doc) {
